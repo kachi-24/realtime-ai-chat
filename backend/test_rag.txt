@@ -1,0 +1,39 @@
+Retrieval-Augmented Generation, commonly called RAG, is an architecture that allows a language model to retrieve information from an external knowledge source before generating an answer.
+
+A RAG system usually contains several components. These include document ingestion, text extraction, document chunking, an embedding model, a vector database, a retriever, and a language model.
+
+Document chunking is the process of breaking a large document into smaller pieces. Smaller pieces allow the retrieval system to find specific parts of a document that are relevant to a user's question.
+
+Embeddings are numerical representations of text. An embedding model converts text into a vector containing many numerical values. Text with similar meanings tends to have vectors that are close together in vector space.
+
+A vector database stores these embeddings and allows applications to search for vectors that are similar to a query vector.
+
+pgvector is a PostgreSQL extension that adds vector data types and similarity search capabilities to PostgreSQL databases.
+
+Cosine similarity is commonly used to measure how similar two vectors are. pgvector provides a cosine distance operator that can be used to find vectors that are close to a query vector.
+
+Semantic search does not require the user's question to contain exactly the same words as the document. Instead, it compares the meaning represented by the embeddings.
+
+For example, a document might say that RAG retrieves information from external documents, while the user might ask how an AI gets knowledge from files. Semantic search can recognize that these questions have related meanings.
+
+The retriever selects the most relevant document chunks and passes them to the language model as context.
+
+The language model can then use this retrieved context to produce an answer.
+
+One important problem in RAG systems is irrelevant retrieval. If the retriever returns unrelated chunks, the language model may produce a poor answer.
+
+Another important problem is context size. Sending too many document chunks to a language model can increase processing time and consume the model's available context window.
+
+RAG systems can also use metadata filtering. For example, a system could search only within documents belonging to a particular user or a particular knowledge base.
+
+In a production RAG system, embeddings are usually generated during document ingestion rather than every time a user asks a question.
+
+Caching can also improve performance when the same documents or questions are accessed frequently.
+
+Distributed RAG systems can use background workers to process documents asynchronously. A message queue can be used to send embedding jobs to workers.
+
+Large RAG systems may distribute documents and vector indexes across multiple services or database nodes.
+
+Security is also important. A RAG application should ensure that one user cannot retrieve documents belonging to another user.
+
+These concepts are important when building production AI applications using retrieval augmented generation.
