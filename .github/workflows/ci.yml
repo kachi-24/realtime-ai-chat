@@ -16,6 +16,17 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
 
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: backend
@@ -41,6 +52,10 @@ jobs:
       - name: Run backend tests
         run: |
           pytest -q
+        env:
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          REDIS_URL: redis://localhost:6379
+          RESEND_API_KEY: test-dummy-key
 
   frontend:
     name: Frontend Build
