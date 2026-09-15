@@ -103,6 +103,8 @@ from cache import (
 
 from rate_limiter import check_rate_limit
 from redis_client import redis_client
+from feature_flags import is_auto_conversation_title_enabled
+from conversation_title import generate_conversation_title
 
 # ============================================================
 # ERROR MONITORING
@@ -988,6 +990,7 @@ async def get_conversations(
         return [
             {
                 "id": str(conversation.id),
+                "title": conversation.title,
                 "created_at": conversation.created_at.isoformat(),
                 "updated_at": conversation.updated_at.isoformat(),
             }
@@ -1781,6 +1784,35 @@ async def websocket_chat(
                     conversation_uuid = (
                         conversation.id
                     )
+
+
+                # --------------------------------------------
+                # Auto-generate conversation title
+                # --------------------------------------------
+                #
+                # Only fires on the conversation's first-ever
+                # message — "New Conversation" is the model's
+                # default title, so this check by itself is
+                # what keeps the title stable across every
+                # later message in the same conversation
+                # instead of getting overwritten each time.
+                # Gated behind a feature flag so it can be
+                # rolled back instantly (env change + restart)
+                # without touching code if something's wrong.
+                # --------------------------------------------
+
+                if (
+                    conversation.title == "New Conversation"
+                    and is_auto_conversation_title_enabled()
+                ):
+
+                    conversation.title = (
+                        generate_conversation_title(
+                            user_message
+                        )
+                    )
+
+                    await session.commit()
 
 
                 # --------------------------------------------

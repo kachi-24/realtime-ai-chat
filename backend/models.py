@@ -194,6 +194,12 @@ class Conversation(Base):
         nullable=False,
     )
 
+    title: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="New Conversation",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,

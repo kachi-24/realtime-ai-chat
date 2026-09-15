@@ -4,7 +4,6 @@ import "./App.css";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 
 import {
-  API_URL,
   WS_URL,
   apiFetch,
   clearAccessToken,
@@ -1519,7 +1518,7 @@ function App() {
                     >
 
                       <strong>
-                        {conversation.id.slice(0, 8)}...
+                        {conversation.title}
                       </strong>
 
                       <span className="conversation-item-time">
