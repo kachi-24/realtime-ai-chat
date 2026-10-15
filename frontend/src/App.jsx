@@ -1,6 +1,13 @@
 import * as Sentry from "@sentry/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import "./App.css";
+
 import { useSpeechRecognition } from "./useSpeechRecognition";
 
 import {
@@ -8,6 +15,7 @@ import {
   apiFetch,
   clearAccessToken,
   getAccessToken,
+  googleLogin,
   login as loginApi,
   logout as logoutApi,
   refreshSession,
@@ -16,14 +24,20 @@ import {
 
 import VerifyEmail from "./VerifyEmail";
 
+import { GoogleLogin } from "@react-oauth/google";
+
+import { uploadImage } from "./api/images";
+
 
 function captureAppError(error, context = {}) {
   Sentry.withScope((scope) => {
     scope.setTag("component", "App");
 
-    Object.entries(context).forEach(([key, value]) => {
-      scope.setExtra(key, value);
-    });
+    Object.entries(context).forEach(
+      ([key, value]) => {
+        scope.setExtra(key, value);
+      }
+    );
 
     Sentry.captureException(
       error instanceof Error
@@ -36,9 +50,9 @@ function captureAppError(error, context = {}) {
 
 function App() {
 
-  // --------------------------------
+  // ==========================================
   // Authentication
-  // --------------------------------
+  // ==========================================
 
   const [token, setToken] = useState(
     getAccessToken()
@@ -55,71 +69,104 @@ function App() {
       "/verify-email"
     );
 
-  const [authMode, setAuthMode] = useState("login");
+  const [authMode, setAuthMode] =
+    useState("login");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [authError, setAuthError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] =
+    useState("");
+
+  const [authLoading, setAuthLoading] =
+    useState(false);
 
 
-  // --------------------------------
+  // ==========================================
   // Chat
-  // --------------------------------
+  // ==========================================
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] =
+    useState([]);
 
-  const [message, setMessage] = useState("");
+  const [message, setMessage] =
+    useState("");
 
-  const [conversationId, setConversationId] = useState(null);
+  const [conversationId, setConversationId] =
+    useState(null);
 
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGenerating, setIsGenerating] =
+    useState(false);
 
-  const [socketConnected, setSocketConnected] = useState(false);
+  const [socketConnected, setSocketConnected] =
+    useState(false);
 
   const socketRef = useRef(null);
 
 
-  // --------------------------------
+  // ==========================================
   // Conversations
-  // --------------------------------
+  // ==========================================
 
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] =
+    useState([]);
 
 
-  // --------------------------------
+  // ==========================================
   // Documents
-  // --------------------------------
+  // ==========================================
 
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFile, setSelectedFile] =
+    useState(null);
 
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] =
+    useState(false);
 
-  const [documents, setDocuments] = useState([]);
+  const [documents, setDocuments] =
+    useState([]);
 
-  const [uploadMessage, setUploadMessage] = useState("");
-
+  const [uploadMessage, setUploadMessage] =
+    useState("");
 
 
   // ==========================================
-  // Restore session on load
+  // Images
   // ==========================================
-  //
-  // The access token lives only in memory (api.js), so
-  // on every page load we need to ask the backend for a
-  // fresh one using the HttpOnly refresh cookie, rather
-  // than reading a token out of localStorage.
+
+  const [selectedImage, setSelectedImage] =
+    useState(null);
+
+  const [imagePreview, setImagePreview] =
+    useState(null);
+
+  const [uploadingImage, setUploadingImage] =
+    useState(false);
+
+  const [imageError, setImageError] =
+    useState("");
+
+  const [webSearch, setWebSearch] =
+    useState(false);
+
+  const [modelChoice, setModelChoice] =
+    useState("ollama");
+
+
+  // ==========================================
+  // Restore Session
   // ==========================================
 
   useEffect(() => {
 
     async function restoreSession() {
+
       try {
+
         const session =
           await refreshSession();
 
         if (session?.access_token) {
+
           setToken(
             session.access_token
           );
@@ -132,12 +179,17 @@ function App() {
             );
 
           if (response.ok) {
+
             setUser(
               await response.json()
             );
+
           }
+
         }
+
       } catch (error) {
+
         console.error(
           "Session restore failed:",
           error
@@ -148,20 +200,28 @@ function App() {
         });
 
         clearAccessToken();
+
         setToken(null);
+
       } finally {
+
         setAuthInitializing(false);
+
       }
+
     }
 
     if (!showVerification) {
+
       restoreSession();
+
     } else {
+
       setAuthInitializing(false);
+
     }
 
   }, [showVerification]);
-
 
 
   // ==========================================
@@ -178,9 +238,11 @@ function App() {
       !email.trim() ||
       !password.trim()
     ) {
+
       setAuthError(
         "Email and password are required."
       );
+
       return;
     }
 
@@ -200,10 +262,12 @@ function App() {
           await response.json();
 
         if (!response.ok) {
+
           throw new Error(
             data.detail ||
             "Registration failed"
           );
+
         }
 
         setEmail("");
@@ -224,10 +288,12 @@ function App() {
         );
 
       if (!data?.access_token) {
+
         throw new Error(
           data?.detail ||
           "Login failed"
         );
+
       }
 
       setToken(
@@ -242,9 +308,11 @@ function App() {
         );
 
       if (response.ok) {
+
         setUser(
           await response.json()
         );
+
       }
 
       setEmail("");
@@ -267,8 +335,66 @@ function App() {
       setAuthLoading(false);
 
     }
+
   };
 
+
+  // ==========================================
+  // Google Sign-In
+  // ==========================================
+
+  const handleGoogleSuccess = async (
+    credentialResponse
+  ) => {
+
+    setAuthError("");
+
+    setAuthLoading(true);
+
+    try {
+
+      const data =
+        await googleLogin(
+          credentialResponse.credential
+        );
+
+      setToken(
+        data.access_token
+      );
+
+      const response =
+        await apiFetch(
+          "/auth/me",
+          {},
+          false
+        );
+
+      if (response.ok) {
+
+        setUser(
+          await response.json()
+        );
+
+      }
+
+    } catch (error) {
+
+      captureAppError(error, {
+        area: "google_login",
+      });
+
+      setAuthError(
+        error.message ||
+        "Google sign-in failed"
+      );
+
+    } finally {
+
+      setAuthLoading(false);
+
+    }
+
+  };
 
 
   // ==========================================
@@ -278,13 +404,19 @@ function App() {
   const logout = async () => {
 
     if (socketRef.current) {
+
       socketRef.current.close();
+
       socketRef.current = null;
+
     }
 
     try {
+
       await logoutApi();
+
     } catch (error) {
+
       console.error(
         "Logout failed:",
         error
@@ -293,32 +425,33 @@ function App() {
       captureAppError(error, {
         area: "logout",
       });
+
     }
 
     clearAccessToken();
 
     setToken(null);
     setUser(null);
+
     setMessages([]);
+
     setConversationId(null);
+
     setConversations([]);
+
     setDocuments([]);
+
+    setSelectedImage(null);
+
+    setImagePreview(null);
+
     setSocketConnected(false);
 
   };
 
 
-
   // ==========================================
-  // Load documents + conversations on login
-  // ==========================================
-  //
-  // Documents and conversations live in the database,
-  // not in component state — every time the page loads
-  // (fresh login, or a restored session), we need to
-  // fetch them again instead of assuming they're still
-  // sitting in memory.
-  //
+  // Load Documents + Conversations
   // ==========================================
 
   useEffect(() => {
@@ -332,15 +465,17 @@ function App() {
 
       try {
 
-        const response = await apiFetch(
-          "/documents"
-        );
+        const response =
+          await apiFetch(
+            "/documents"
+          );
 
         if (!response.ok) {
           return;
         }
 
-        const data = await response.json();
+        const data =
+          await response.json();
 
         setDocuments(data);
 
@@ -364,15 +499,17 @@ function App() {
 
       try {
 
-        const response = await apiFetch(
-          "/conversations"
-        );
+        const response =
+          await apiFetch(
+            "/conversations"
+          );
 
         if (!response.ok) {
           return;
         }
 
-        const data = await response.json();
+        const data =
+          await response.json();
 
         setConversations(data);
 
@@ -393,15 +530,13 @@ function App() {
 
 
     loadDocuments();
-
     loadConversations();
 
   }, [token]);
 
 
-
   // ==========================================
-  // Open a past conversation
+  // Open Conversation
   // ==========================================
 
   const openConversation = async (id) => {
@@ -412,25 +547,30 @@ function App() {
 
     try {
 
-      const response = await apiFetch(
-        `/conversations/${id}/messages`
-      );
+      const response =
+        await apiFetch(
+          `/conversations/${id}/messages`
+        );
 
       if (!response.ok) {
+
         throw new Error(
           "Could not load that conversation."
         );
+
       }
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       setConversationId(id);
 
       setMessages(
-        data.map((message) => ({
-          role: message.role,
-          content: message.content,
+        data.map((item) => ({
+          role: item.role,
+          content: item.content,
           sources: [],
+          image: null,
         }))
       );
 
@@ -451,7 +591,6 @@ function App() {
   };
 
 
-
   // ==========================================
   // WebSocket
   // ==========================================
@@ -462,15 +601,11 @@ function App() {
       return;
     }
 
-
     const socketUrl =
       `${WS_URL}/ws/chat?token=${encodeURIComponent(token)}`;
 
-
-    const socket = new WebSocket(
-      socketUrl
-    );
-
+    const socket =
+      new WebSocket(socketUrl);
 
     socketRef.current = socket;
 
@@ -490,9 +625,8 @@ function App() {
 
       try {
 
-        const data = JSON.parse(
-          event.data
-        );
+        const data =
+          JSON.parse(event.data);
 
 
         // ------------------------------
@@ -506,38 +640,45 @@ function App() {
           setConversationId(
             (previousId) => {
 
-              // If this conversation ID is new
-              // (a brand new conversation was
-              // just created), refresh the
-              // sidebar list so it appears
-              // without needing a page reload.
               if (
                 previousId !==
                 data.conversation_id
               ) {
 
-                apiFetch("/conversations")
+                apiFetch(
+                  "/conversations"
+                )
                   .then((response) =>
                     response.ok
                       ? response.json()
                       : null
                   )
                   .then((refreshed) => {
+
                     if (refreshed) {
+
                       setConversations(
                         refreshed
                       );
+
                     }
+
                   })
                   .catch((error) => {
+
                     console.error(
                       "Failed to refresh conversations:",
                       error
                     );
 
-                    captureAppError(error, {
-                      area: "refresh_conversations",
-                    });
+                    captureAppError(
+                      error,
+                      {
+                        area:
+                          "refresh_conversations",
+                      }
+                    );
+
                   });
 
               }
@@ -559,24 +700,24 @@ function App() {
         ) {
 
           setMessages(
-            previous => {
+            (previous) => {
 
-              const updated = [
-                ...previous,
-              ];
+              const updated =
+                [...previous];
 
               const lastIndex =
                 updated.length - 1;
 
-
               if (
                 lastIndex >= 0 &&
-                updated[lastIndex].role === "assistant"
+                updated[lastIndex].role ===
+                  "assistant"
               ) {
 
                 updated[lastIndex] = {
                   ...updated[lastIndex],
-                  sources: data.sources || [],
+                  sources:
+                    data.sources || [],
                 };
 
               }
@@ -590,7 +731,7 @@ function App() {
 
 
         // ------------------------------
-        // AI chunk
+        // AI Chunk
         // ------------------------------
 
         else if (
@@ -598,26 +739,26 @@ function App() {
         ) {
 
           setMessages(
-            previous => {
+            (previous) => {
 
-              const updated = [
-                ...previous,
-              ];
+              const updated =
+                [...previous];
 
               const lastIndex =
                 updated.length - 1;
 
-
               if (
                 lastIndex >= 0 &&
-                updated[lastIndex].role === "assistant"
+                updated[lastIndex].role ===
+                  "assistant"
               ) {
 
                 updated[lastIndex] = {
                   ...updated[lastIndex],
 
                   content:
-                    updated[lastIndex].content +
+                    updated[lastIndex]
+                      .content +
                     data.content,
 
                 };
@@ -645,6 +786,75 @@ function App() {
         }
 
 
+        else if (
+          data.type === "reset"
+        ) {
+
+          setMessages(
+            (previous) => {
+
+              const updated =
+                [...previous];
+
+              const lastIndex =
+                updated.length - 1;
+
+              if (
+                lastIndex >= 0 &&
+                updated[lastIndex].role ===
+                  "assistant"
+              ) {
+
+                updated[lastIndex] = {
+                  ...updated[lastIndex],
+                  content: "",
+                };
+
+              }
+
+              return updated;
+
+            }
+          );
+
+        }
+
+
+        else if (
+          data.type === "web_sources"
+        ) {
+
+          setMessages(
+            (previous) => {
+
+              const updated =
+                [...previous];
+
+              const lastIndex =
+                updated.length - 1;
+
+              if (
+                lastIndex >= 0 &&
+                updated[lastIndex].role ===
+                  "assistant"
+              ) {
+
+                updated[lastIndex] = {
+                  ...updated[lastIndex],
+                  webSources:
+                    data.sources || [],
+                };
+
+              }
+
+              return updated;
+
+            }
+          );
+
+        }
+
+
         // ------------------------------
         // Error
         // ------------------------------
@@ -657,21 +867,19 @@ function App() {
             data.message
           );
 
-
           setMessages(
-            previous => {
+            (previous) => {
 
-              const updated = [
-                ...previous,
-              ];
+              const updated =
+                [...previous];
 
               const lastIndex =
                 updated.length - 1;
 
-
               if (
                 lastIndex >= 0 &&
-                updated[lastIndex].role === "assistant"
+                updated[lastIndex].role ===
+                  "assistant"
               ) {
 
                 updated[lastIndex] = {
@@ -689,7 +897,6 @@ function App() {
             }
           );
 
-
           setIsGenerating(false);
 
         }
@@ -703,7 +910,8 @@ function App() {
 
         captureAppError(error, {
           area: "websocket_message",
-          conversation_id: conversationId,
+          conversation_id:
+            conversationId,
         });
 
       }
@@ -711,19 +919,21 @@ function App() {
     };
 
 
-    socket.onerror = (error) => {
+    socket.onerror = () => {
 
       console.error(
-        "WebSocket error:",
-        error
+        "WebSocket error"
       );
 
       captureAppError(
-        new Error("WebSocket connection error"),
+        new Error(
+          "WebSocket connection error"
+        ),
         {
-          area: "websocket_connection",
-          conversation_id: conversationId,
-          ready_state: socket.readyState,
+          area:
+            "websocket_connection",
+          conversation_id:
+            conversationId,
         }
       );
 
@@ -740,18 +950,25 @@ function App() {
         event.reason
       );
 
-      if (event.code !== 1000 && event.code !== 1001) {
+      if (
+        event.code !== 1000 &&
+        event.code !== 1001
+      ) {
+
         captureAppError(
           new Error(
             `WebSocket closed unexpectedly (code ${event.code})`
           ),
           {
-            area: "websocket_close",
-            close_code: event.code,
-            close_reason: event.reason || "",
-            conversation_id: conversationId,
+            area:
+              "websocket_close",
+            close_code:
+              event.code,
+            close_reason:
+              event.reason || "",
           }
         );
+
       }
 
       setSocketConnected(false);
@@ -768,19 +985,140 @@ function App() {
   }, [token]);
 
 
+  // ==========================================
+  // Image Selection
+  // ==========================================
+
+  const handleImageChange = (event) => {
+
+    const file =
+      event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setImageError("");
+
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    const maxSize =
+      10 * 1024 * 1024;
+
+
+    if (!allowedTypes.includes(file.type)) {
+
+      setImageError(
+        "Only JPG, PNG, and WebP images are allowed."
+      );
+
+      event.target.value = "";
+
+      return;
+    }
+
+
+    if (file.size > maxSize) {
+
+      setImageError(
+        "Image must be smaller than 10 MB."
+      );
+
+      event.target.value = "";
+
+      return;
+    }
+
+
+    if (imagePreview) {
+
+      URL.revokeObjectURL(
+        imagePreview
+      );
+
+    }
+
+
+    const preview =
+      URL.createObjectURL(file);
+
+    setSelectedImage(file);
+
+    setImagePreview(preview);
+
+  };
+
+
+  const removeSelectedImage = () => {
+
+    if (imagePreview) {
+
+      URL.revokeObjectURL(
+        imagePreview
+      );
+
+    }
+
+    setSelectedImage(null);
+    setImagePreview(null);
+    setImageError("");
+
+    const input =
+      document.getElementById(
+        "image-file"
+      );
+
+    if (input) {
+      input.value = "";
+    }
+
+  };
+
+
+  useEffect(() => {
+
+    return () => {
+
+      if (imagePreview) {
+
+        URL.revokeObjectURL(
+          imagePreview
+        );
+
+      }
+
+    };
+
+  }, [imagePreview]);
+
 
   // ==========================================
   // Send Message
   // ==========================================
 
-  const sendMessage = (overrideText) => {
+  const sendMessage = async (
+    overrideText
+  ) => {
 
     const trimmedMessage =
-      (overrideText ?? message).trim();
+      (
+        overrideText ??
+        message
+      ).trim();
 
 
-    if (!trimmedMessage) {
+    if (
+      !trimmedMessage &&
+      !selectedImage
+    ) {
+
       return;
+
     }
 
 
@@ -814,32 +1152,105 @@ function App() {
     }
 
 
-    // ------------------------------
-    // Add user message
-    // ------------------------------
+    const outgoingText =
+      trimmedMessage || "Describe this image.";
+
+    let uploadedImageId = null;
+
+    // Created after a successful upload, from the file itself.
+    // The picker's own preview URL is revoked when the selection
+    // is cleared, which would break the image in the chat bubble.
+    let localImagePreview = null;
+
+
+    // ======================================
+    // Upload Image First
+    // ======================================
+
+    if (selectedImage) {
+
+      try {
+
+        setUploadingImage(true);
+
+        setImageError("");
+
+        const data =
+          await uploadImage(
+            selectedImage,
+            apiFetch
+          );
+
+        uploadedImageId =
+          data.image_id;
+
+        localImagePreview =
+          URL.createObjectURL(selectedImage);
+
+      } catch (error) {
+
+        console.error(
+          "Image upload failed:",
+          error
+        );
+
+        captureAppError(
+          error,
+          {
+            area:
+              "image_upload",
+          }
+        );
+
+        setImageError(
+          error.message ||
+          "Image upload failed."
+        );
+
+        setUploadingImage(false);
+
+        return;
+
+      } finally {
+
+        setUploadingImage(false);
+
+      }
+
+    }
+
+
+    // ======================================
+    // Add User + Assistant Message
+    // ======================================
 
     setMessages(
-      previous => [
+      (previous) => [
+
         ...previous,
 
         {
           role: "user",
-          content: trimmedMessage,
+          content:
+            outgoingText,
+          image:
+            localImagePreview,
         },
 
         {
           role: "assistant",
           content: "",
           sources: [],
+          image: null,
         },
 
       ]
     );
 
 
-    // ------------------------------
-    // Send to backend
-    // ------------------------------
+    // ======================================
+    // Send WebSocket Payload
+    // ======================================
 
     socketRef.current.send(
       JSON.stringify({
@@ -847,69 +1258,91 @@ function App() {
           conversationId,
 
         message:
-          trimmedMessage,
+          outgoingText,
+
+        image_id:
+          uploadedImageId,
+
+        web_search:
+          webSearch,
+
+        model:
+          modelChoice,
       })
     );
 
 
     setMessage("");
 
+    removeSelectedImage();
+
     setIsGenerating(true);
 
   };
 
 
-
   // ==========================================
   // Speech Recognition
   // ==========================================
-  //
-  // - While the user is talking, the live/interim
-  //   transcript fills the message textarea so they
-  //   can see what's being picked up.
-  // - Once the hook detects ~2 seconds of silence, it
-  //   reports a final transcript, which we auto-send
-  //   as a message — no need to click Send.
-  //
-  // sendMessageRef always points at the latest
-  // sendMessage (which closes over current state like
-  // conversationId/isGenerating). Without this ref, the
-  // memoized handleSpeechFinal below would auto-send
-  // using a stale, outdated sendMessage.
-  // ==========================================
 
-  const sendMessageRef = useRef(() => {});
+  const sendMessageRef =
+    useRef(() => {});
+
 
   useEffect(() => {
-    sendMessageRef.current = sendMessage;
+
+    sendMessageRef.current =
+      sendMessage;
+
   });
 
-  const handleSpeechTranscript = useCallback(
-    (transcript) => {
-      setMessage(transcript);
-    },
-    []
-  );
 
-  const handleSpeechFinal = useCallback(
-    (finalTranscript) => {
-      sendMessageRef.current(finalTranscript);
-    },
-    []
-  );
+  const handleSpeechTranscript =
+    useCallback(
+      (transcript) => {
+
+        setMessage(
+          transcript
+        );
+
+      },
+      []
+    );
+
+
+  const handleSpeechFinal =
+    useCallback(
+      (finalTranscript) => {
+
+        sendMessageRef.current(
+          finalTranscript
+        );
+
+      },
+      []
+    );
+
 
   const {
     isListening,
-    isSupported: speechSupported,
-    error: speechError,
+    isSupported:
+      speechSupported,
+    error:
+      speechError,
     startListening,
     stopListening,
-  } = useSpeechRecognition({
-    onTranscript: handleSpeechTranscript,
-    onSilenceTimeout: handleSpeechFinal,
-  });
+  } =
+    useSpeechRecognition({
+      onTranscript:
+        handleSpeechTranscript,
+
+      onSilenceTimeout:
+        handleSpeechFinal,
+    });
+
 
   useEffect(() => {
+
     if (!speechError) {
       return;
     }
@@ -917,24 +1350,33 @@ function App() {
     captureAppError(
       new Error(speechError),
       {
-        area: "speech_recognition",
+        area:
+          "speech_recognition",
       }
     );
+
   }, [speechError]);
 
+
   const toggleListening = () => {
+
     if (isListening) {
+
       stopListening();
+
     } else {
+
       setMessage("");
+
       startListening();
+
     }
+
   };
 
 
-
   // ==========================================
-  // Enter key
+  // Enter Key
   // ==========================================
 
   const handleKeyDown = (event) => {
@@ -953,30 +1395,33 @@ function App() {
   };
 
 
-
   // ==========================================
   // New Conversation
   // ==========================================
 
   const newConversation = () => {
 
+    if (isGenerating) {
+      return;
+    }
+
     setConversationId(null);
 
     setMessages([]);
 
+    removeSelectedImage();
+
   };
 
 
-
   // ==========================================
-  // File Selection
+  // Document Selection
   // ==========================================
 
   const handleFileChange = (event) => {
 
     const file =
       event.target.files?.[0];
-
 
     if (!file) {
       return;
@@ -1013,7 +1458,6 @@ function App() {
   };
 
 
-
   // ==========================================
   // Upload Document
   // ==========================================
@@ -1038,7 +1482,6 @@ function App() {
 
     const formData =
       new FormData();
-
 
     formData.append(
       "file",
@@ -1087,7 +1530,9 @@ function App() {
 
 
       if (fileInput) {
+
         fileInput.value = "";
+
       }
 
 
@@ -1095,17 +1540,27 @@ function App() {
         data.document_id
       );
 
+
     } catch (error) {
 
-      captureAppError(error, {
-        area: "document_upload",
-        filename: selectedFile?.name || "unknown",
-      });
+      captureAppError(
+        error,
+        {
+          area:
+            "document_upload",
+
+          filename:
+            selectedFile?.name ||
+            "unknown",
+        }
+      );
+
 
       setUploadMessage(
         error.message ||
         "Document upload failed"
       );
+
 
     } finally {
 
@@ -1116,129 +1571,143 @@ function App() {
   };
 
 
-
   // ==========================================
-  // Check document processing
+  // Check Document Status
   // ==========================================
 
-  const checkDocumentStatus = async (
-    documentId
-  ) => {
+  const checkDocumentStatus =
+    async (documentId) => {
 
-    try {
+      try {
 
-      const response =
-        await apiFetch(
-          `/documents/${documentId}`
-        );
-
-
-      const data =
-        await response.json();
+        const response =
+          await apiFetch(
+            `/documents/${documentId}`
+          );
 
 
-      if (!response.ok) {
-        return;
-      }
+        const data =
+          await response.json();
 
 
-      setDocuments(
-        previous => {
-
-          const exists =
-            previous.some(
-              document =>
-                document.document_id ===
-                data.document_id
-            );
+        if (!response.ok) {
+          return;
+        }
 
 
-          if (exists) {
+        setDocuments(
+          (previous) => {
 
-            return previous.map(
-              document =>
-                document.document_id ===
-                data.document_id
-                  ? data
-                  : document
-            );
+            const exists =
+              previous.some(
+                (document) =>
+                  document.document_id ===
+                  data.document_id
+              );
+
+
+            if (exists) {
+
+              return previous.map(
+                (document) =>
+                  document.document_id ===
+                  data.document_id
+                    ? data
+                    : document
+              );
+
+            }
+
+
+            return [
+              ...previous,
+              data,
+            ];
 
           }
+        );
 
 
-          return [
-            ...previous,
-            data,
-          ];
+        if (
+          data.status ===
+          "processing"
+        ) {
+
+          setTimeout(
+            () => {
+
+              checkDocumentStatus(
+                documentId
+              );
+
+            },
+            2000
+          );
 
         }
-      );
 
+        else if (
+          data.status ===
+          "ready"
+        ) {
 
-      if (
-        data.status === "processing"
-      ) {
+          setUploadMessage(
+            `${data.filename} is ready for RAG.`
+          );
 
-        setTimeout(
-          () => {
-            checkDocumentStatus(
-              documentId
-            );
-          },
-          2000
+        }
+
+        else if (
+          data.status ===
+          "failed"
+        ) {
+
+          setUploadMessage(
+            `Processing failed: ${
+              data.error ||
+              "Unknown error"
+            }`
+          );
+
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Document status error:",
+          error
+        );
+
+        captureAppError(
+          error,
+          {
+            area:
+              "document_status",
+
+            document_id:
+              documentId,
+          }
         );
 
       }
 
-      else if (
-        data.status === "ready"
-      ) {
-
-        setUploadMessage(
-          `${data.filename} is ready for RAG.`
-        );
-
-      }
-
-      else if (
-        data.status === "failed"
-      ) {
-
-        setUploadMessage(
-          `Processing failed: ${
-            data.error || "Unknown error"
-          }`
-        );
-
-      }
-
-    } catch (error) {
-
-      console.error(
-        "Document status error:",
-        error
-      );
-
-      captureAppError(error, {
-        area: "document_status",
-        document_id: documentId,
-      });
-
-    }
-
-  };
-
+    };
 
 
   // ==========================================
-  // Render: Email Verification Page
+  // Email Verification
   // ==========================================
 
   if (showVerification) {
+
     return (
       <VerifyEmail
         onLogin={() => {
-          setShowVerification(false);
+
+          setShowVerification(
+            false
+          );
+
           setAuthMode("login");
 
           window.history.replaceState(
@@ -1246,21 +1715,25 @@ function App() {
             "",
             "/"
           );
+
         }}
       />
     );
+
   }
 
 
-
   // ==========================================
-  // Render: Restoring Session
+  // Restoring Session
   // ==========================================
 
   if (authInitializing) {
+
     return (
       <div className="auth-page">
+
         <div className="auth-card">
+
           <h1>
             Real-Time AI Chat
           </h1>
@@ -1268,15 +1741,17 @@ function App() {
           <p className="auth-subtitle">
             Restoring your secure session...
           </p>
+
         </div>
+
       </div>
     );
+
   }
 
 
-
   // ==========================================
-  // Render Authentication
+  // Authentication
   // ==========================================
 
   if (!token) {
@@ -1325,7 +1800,9 @@ function App() {
 
               onClick={() => {
 
-                setAuthMode("register");
+                setAuthMode(
+                  "register"
+                );
 
                 setAuthError("");
 
@@ -1377,18 +1854,47 @@ function App() {
             <button
               className="primary-button"
               type="submit"
-              disabled={authLoading}
+              disabled={
+                authLoading
+              }
             >
 
               {authLoading
                 ? "Please wait..."
                 : authMode === "login"
-                  ? "Login"
-                  : "Create Account"}
+                ? "Login"
+                : "Create Account"}
 
             </button>
 
           </form>
+
+
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+
+            <div
+              style={{
+                marginTop: "16px",
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+
+              <GoogleLogin
+                onSuccess={
+                  handleGoogleSuccess
+                }
+
+                onError={() =>
+                  setAuthError(
+                    "Google sign-in failed"
+                  )
+                }
+              />
+
+            </div>
+
+          )}
 
         </div>
 
@@ -1396,7 +1902,6 @@ function App() {
     );
 
   }
-
 
 
   // ==========================================
@@ -1407,9 +1912,10 @@ function App() {
 
     <div className="app">
 
-      {/* ================================
+
+      {/* ==================================
           Header
-      ================================= */}
+      ================================== */}
 
       <header className="header">
 
@@ -1455,31 +1961,30 @@ function App() {
       </header>
 
 
-
-      {/* ================================
+      {/* ==================================
           Main Layout
-      ================================= */}
+      ================================== */}
 
       <main className="main-layout">
 
 
-        {/* =================================
+        {/* ==================================
             Sidebar
-        ================================= */}
+        ================================== */}
 
         <aside className="sidebar">
 
           <button
             className="new-chat-button"
-            onClick={newConversation}
+            onClick={
+              newConversation
+            }
           >
             + New Conversation
           </button>
 
 
-          {/* ===============================
-              Conversations
-          =============================== */}
+          {/* Conversations */}
 
           <section className="conversations-section">
 
@@ -1487,9 +1992,11 @@ function App() {
               Conversations
             </h2>
 
+
             <div className="conversation-list">
 
-              {conversations.length === 0 ? (
+              {conversations.length ===
+              0 ? (
 
                 <p className="empty">
                   No past conversations.
@@ -1501,30 +2008,42 @@ function App() {
                   (conversation) => (
 
                     <button
-                      key={conversation.id}
+                      key={
+                        conversation.id
+                      }
+
                       className={
                         `conversation-item ${
-                          conversation.id === conversationId
+                          conversation.id ===
+                          conversationId
                             ? "active"
                             : ""
                         }`
                       }
+
                       onClick={() =>
                         openConversation(
                           conversation.id
                         )
                       }
-                      disabled={isGenerating}
+
+                      disabled={
+                        isGenerating
+                      }
                     >
 
                       <strong>
-                        {conversation.title}
+                        {
+                          conversation.title
+                        }
                       </strong>
 
                       <span className="conversation-item-time">
+
                         {new Date(
                           conversation.updated_at
                         ).toLocaleString()}
+
                       </span>
 
                     </button>
@@ -1539,9 +2058,7 @@ function App() {
           </section>
 
 
-          {/* ===============================
-              Documents
-          =============================== */}
+          {/* Documents */}
 
           <section className="documents-section">
 
@@ -1563,9 +2080,7 @@ function App() {
             {selectedFile && (
 
               <p className="selected-file">
-
                 {selectedFile.name}
-
               </p>
 
             )}
@@ -1573,7 +2088,10 @@ function App() {
 
             <button
               className="upload-button"
-              onClick={uploadDocument}
+              onClick={
+                uploadDocument
+              }
+
               disabled={
                 uploading ||
                 !selectedFile
@@ -1590,9 +2108,7 @@ function App() {
             {uploadMessage && (
 
               <div className="upload-message">
-
                 {uploadMessage}
-
               </div>
 
             )}
@@ -1600,7 +2116,8 @@ function App() {
 
             <div className="document-list">
 
-              {documents.length === 0 ? (
+              {documents.length ===
+              0 ? (
 
                 <p className="empty">
                   No documents uploaded.
@@ -1609,17 +2126,20 @@ function App() {
               ) : (
 
                 documents.map(
-                  document => (
+                  (document) => (
 
                     <div
                       key={
                         document.document_id
                       }
+
                       className="document-item"
                     >
 
                       <strong>
-                        {document.filename}
+                        {
+                          document.filename
+                        }
                       </strong>
 
                       <span
@@ -1627,7 +2147,9 @@ function App() {
                           `status ${document.status}`
                         }
                       >
-                        {document.status}
+                        {
+                          document.status
+                        }
                       </span>
 
                     </div>
@@ -1644,10 +2166,9 @@ function App() {
         </aside>
 
 
-
-        {/* =================================
+        {/* ==================================
             Chat
-        ================================= */}
+        ================================== */}
 
         <section className="chat-container">
 
@@ -1656,7 +2177,8 @@ function App() {
 
           <div className="messages">
 
-            {messages.length === 0 ? (
+            {messages.length ===
+            0 ? (
 
               <div className="welcome">
 
@@ -1665,13 +2187,19 @@ function App() {
                 </h2>
 
                 <p>
-                  Upload a document and ask
-                  questions about it.
+                  Upload a document and
+                  ask questions about it.
                 </p>
 
                 <p>
-                  You can also ask general
-                  questions using the local AI.
+                  You can also ask
+                  general questions using
+                  the local AI.
+                </p>
+
+                <p>
+                  📷 You can now attach
+                  images for AI analysis.
                 </p>
 
               </div>
@@ -1696,34 +2224,92 @@ function App() {
 
                       <div className="message-role">
 
-                        {msg.role === "user"
+                        {msg.role ===
+                        "user"
                           ? "You"
                           : "AI"}
 
                       </div>
 
 
+                      {/* Image */}
+
+                      {msg.image && (
+
+                        <div className="message-image">
+
+                          <img
+                            src={
+                              msg.image
+                            }
+                            alt="Attached"
+                          />
+
+                        </div>
+
+                      )}
+
+
+                      {/* Message */}
+
                       <div className="message-content">
 
-                        {msg.content ||
-                          (
-                            msg.role ===
-                              "assistant" &&
-                            isGenerating
-                          )
-                          ? msg.content
-                          : "Thinking..."}
+                        {msg.content ? (
+                          msg.content
+                        ) : (
+                          msg.role ===
+                            "assistant" &&
+                          isGenerating
+                            ? "Thinking..."
+                            : ""
+                        )}
 
                       </div>
 
 
-                      {/* =====================
-                          Sources
-                      ===================== */}
+                      {/* Web sources */}
+
+                      {msg.webSources?.length > 0 && (
+
+                        <div className="sources">
+
+                          <h4>
+                            Web sources
+                          </h4>
+
+                          {msg.webSources.map(
+                            (source, sourceIndex) => (
+
+                              <div
+                                key={sourceIndex}
+                                className="source-item"
+                              >
+
+                                <a
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  [W{sourceIndex + 1}]{" "}
+                                  {source.title || source.url}
+                                </a>
+
+                              </div>
+
+                            )
+                          )}
+
+                        </div>
+
+                      )}
+
+
+                      {/* Sources */}
 
                       {msg.role ===
                         "assistant" &&
-                        msg.sources?.length > 0 && (
+                        msg.sources?.length >
+                          0 && (
 
                         <div className="sources">
 
@@ -1733,24 +2319,32 @@ function App() {
 
 
                           {msg.sources.map(
-                            (source, sourceIndex) => (
+                            (
+                              source,
+                              sourceIndex
+                            ) => (
 
                               <div
                                 key={
                                   sourceIndex
                                 }
+
                                 className="source-item"
                               >
 
                                 <div className="source-item-filename">
                                   📄{" "}
-                                  {source.filename ||
-                                    "Document"}
+                                  {
+                                    source.filename ||
+                                    "Document"
+                                  }
                                 </div>
 
                                 <div className="source-item-chunk">
                                   Chunk{" "}
-                                  {source.chunk_index}
+                                  {
+                                    source.chunk_index
+                                  }
                                 </div>
 
                               </div>
@@ -1774,21 +2368,171 @@ function App() {
           </div>
 
 
+          {/* ==================================
+              Image Preview
+          ================================== */}
 
-          {/* ================================
-              Message Input
-          ================================= */}
+          {imagePreview && (
+
+            <div className="selected-image-container">
+
+              <div className="selected-image-preview">
+
+                <img
+                  src={imagePreview}
+                  alt="Selected"
+                />
+
+                <button
+                  type="button"
+                  onClick={
+                    removeSelectedImage
+                  }
+
+                  className="remove-image-button"
+                >
+                  ×
+                </button>
+
+              </div>
+
+              <div className="selected-image-info">
+
+                <strong>
+                  {selectedImage?.name}
+                </strong>
+
+                <span>
+                  {selectedImage
+                    ? `${(
+                        selectedImage.size /
+                        1024 /
+                        1024
+                      ).toFixed(2)} MB`
+                    : ""}
+                </span>
+
+              </div>
+
+            </div>
+
+          )}
+
+
+          {imageError && (
+
+            <div className="image-error">
+              {imageError}
+            </div>
+
+          )}
+
+
+          {/* ==================================
+              Input
+          ================================== */}
 
           <div className="input-container">
 
+
+            {/* Model */}
+
+            <select
+              value={modelChoice}
+              onChange={(event) =>
+                setModelChoice(
+                  event.target.value
+                )
+              }
+              disabled={isGenerating}
+              title="Choose the AI model"
+              style={{
+                padding: "8px",
+                borderRadius: "8px",
+              }}
+            >
+              <option value="ollama">
+                Local (Ollama)
+              </option>
+              <option value="api">
+                Cloud (API)
+              </option>
+            </select>
+
+
+            {/* Web Search */}
+
+            <label
+              title="Search the web for current information"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                fontSize: "14px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={webSearch}
+                onChange={(event) =>
+                  setWebSearch(
+                    event.target.checked
+                  )
+                }
+                disabled={isGenerating}
+              />
+              🌐 Web
+            </label>
+
+
+            {/* Image Button */}
+
+            <label
+              htmlFor="image-file"
+              className={
+                `image-button ${
+                  uploadingImage
+                    ? "disabled"
+                    : ""
+                }`
+              }
+
+              title="Attach image"
+            >
+              📷
+            </label>
+
+            <input
+              id="image-file"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={
+                handleImageChange
+              }
+              hidden
+              disabled={
+                uploadingImage ||
+                isGenerating
+              }
+            />
+
+
+            {/* Text */}
+
             <textarea
               value={message}
+
               onChange={(event) =>
                 setMessage(
                   event.target.value
                 )
               }
-              onKeyDown={handleKeyDown}
+
+              onKeyDown={
+                handleKeyDown
+              }
+
               placeholder={
                 isListening
                   ? "Listening... speak now"
@@ -1796,6 +2540,7 @@ function App() {
                   ? "Ask something..."
                   : "Connecting to AI..."
               }
+
               disabled={
                 !socketConnected ||
                 isGenerating
@@ -1803,43 +2548,69 @@ function App() {
             />
 
 
+            {/* Microphone */}
+
             {speechSupported && (
 
               <button
                 type="button"
-                onClick={toggleListening}
+
+                onClick={
+                  toggleListening
+                }
+
                 disabled={
                   !socketConnected ||
                   isGenerating
                 }
+
                 className={
                   `mic-button ${
-                    isListening ? "listening" : ""
+                    isListening
+                      ? "listening"
+                      : ""
                   }`
                 }
+
                 title={
                   isListening
                     ? "Stop voice input"
                     : "Start voice input"
                 }
               >
-                {isListening ? "⏹️" : "🎤"}
+
+                {isListening
+                  ? "⏹️"
+                  : "🎤"}
+
               </button>
 
             )}
 
 
+            {/* Send */}
+
             <button
-              onClick={() => sendMessage()}
+              onClick={() =>
+                sendMessage()
+              }
+
               disabled={
                 !socketConnected ||
-                !message.trim() ||
-                isGenerating
+                (
+                  !message.trim() &&
+                  !selectedImage
+                ) ||
+                isGenerating ||
+                uploadingImage
               }
+
               className="send-button"
             >
 
-              {isGenerating
+              {uploadingImage
+                ? "Uploading..."
+                : isGenerating
                 ? "Generating..."
                 : "Send"}
 
@@ -1847,16 +2618,22 @@ function App() {
 
           </div>
 
+
           {isListening && (
+
             <div className="speech-status">
               🎙️ Listening...
             </div>
+
           )}
 
+
           {speechError && (
+
             <div className="speech-error">
               {speechError}
             </div>
+
           )}
 
         </section>

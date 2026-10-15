@@ -36,9 +36,15 @@ class User(Base):
         nullable=False,
     )
 
-    password_hash: Mapped[str] = mapped_column(
+    password_hash: Mapped[str | None] = mapped_column(
         Text,
-        nullable=False,
+        nullable=True,
+    )
+
+    google_sub: Mapped[str | None] = mapped_column(
+        Text,
+        unique=True,
+        nullable=True,
     )
 
     email_verified: Mapped[bool] = mapped_column(
@@ -60,6 +66,12 @@ class User(Base):
 
     documents = relationship(
         "Document",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    images = relationship(
+        "Image",
         back_populates="user",
         cascade="all, delete-orphan",
     )
@@ -350,4 +362,57 @@ class DocumentChunk(Base):
     document = relationship(
         "Document",
         back_populates="chunks",
+    )
+
+
+# =========================================================
+# IMAGE
+# =========================================================
+
+class Image(Base):
+    __tablename__ = "images"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    cloudinary_public_id: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        unique=True,
+    )
+
+    format: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    width: Mapped[int] = mapped_column(
+        nullable=False,
+    )
+
+    height: Mapped[int] = mapped_column(
+        nullable=False,
+    )
+
+    size: Mapped[int] = mapped_column(
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    user = relationship(
+        "User",
+        back_populates="images",
     )

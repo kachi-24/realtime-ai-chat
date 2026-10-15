@@ -753,3 +753,211 @@ body {
   color: #166534;
   border-radius: 7px;
 }
+/* ==========================================
+   Image Upload
+========================================== */
+
+.image-button {
+  width: 55px;
+  min-width: 55px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+
+  background: white;
+
+  font-size: 20px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.image-button:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.image-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+/* ==========================================
+   Selected Image
+========================================== */
+
+.selected-image-container {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 10px 20px;
+
+  background: white;
+
+  border-top: 1px solid #e5e7eb;
+}
+
+
+.selected-image-preview {
+  position: relative;
+
+  width: 80px;
+  height: 80px;
+
+  flex-shrink: 0;
+}
+
+
+.selected-image-preview img {
+  width: 80px;
+  height: 80px;
+
+  object-fit: cover;
+
+  border-radius: 9px;
+
+  border: 1px solid #d1d5db;
+}
+
+
+.remove-image-button {
+  position: absolute;
+
+  top: -7px;
+  right: -7px;
+
+  width: 24px;
+  height: 24px;
+
+  border: none;
+
+  border-radius: 50%;
+
+  background: #dc2626;
+
+  color: white;
+
+  font-size: 16px;
+
+  line-height: 24px;
+
+  cursor: pointer;
+
+  padding: 0;
+}
+
+
+.selected-image-info {
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+
+  min-width: 0;
+}
+
+
+.selected-image-info strong {
+  max-width: 300px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  font-size: 13px;
+}
+
+
+.selected-image-info span {
+  font-size: 12px;
+
+  color: #6b7280;
+}
+
+
+/* ==========================================
+   Image Errors
+========================================== */
+
+.image-error {
+  padding: 8px 20px;
+
+  background: #fee2e2;
+
+  color: #b91c1c;
+
+  font-size: 12px;
+
+  border-top: 1px solid #fecaca;
+}
+
+
+/* ==========================================
+   Image Inside Chat Message
+========================================== */
+
+.message-image {
+  margin-bottom: 10px;
+}
+
+
+.message-image img {
+  display: block;
+
+  max-width: 280px;
+  max-height: 280px;
+
+  width: auto;
+  height: auto;
+
+  object-fit: contain;
+
+  border-radius: 10px;
+
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+
+/* ==========================================
+   Mobile Image Layout
+========================================== */
+
+@media (max-width: 768px) {
+
+  .selected-image-container {
+    padding: 10px 15px;
+  }
+
+  .message-image img {
+    max-width: 220px;
+    max-height: 220px;
+  }
+
+}
+
+
+@media (max-width: 480px) {
+
+  .image-button {
+    width: 48px;
+    min-width: 48px;
+  }
+
+  .message-image img {
+    max-width: 180px;
+    max-height: 180px;
+  }
+
+}

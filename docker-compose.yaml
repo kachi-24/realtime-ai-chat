@@ -3,6 +3,9 @@ services:
     build:
       context: ./backend
     container_name: realtime-ai-backend
+    dns:                  # <--- Add this
+      - 8.8.8.8           # <--- Add this
+      - 1.1.1.1           # <--- Add this
     env_file:
       - ./.env.docker
     ports:
@@ -19,6 +22,9 @@ services:
     build:
       context: ./backend
     container_name: realtime-ai-worker
+    dns:                  # <--- Add this
+      - 8.8.8.8           # <--- Add this
+      - 1.1.1.1           # <--- Add this
     env_file:
       - ./.env.docker
     command: python worker.py

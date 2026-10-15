@@ -197,3 +197,22 @@ export async function verifyEmail(token) {
     data: await parseResponse(response),
   };
 }
+   export async function googleLogin(credential) {
+     const response = await apiFetch("/auth/google", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ credential }),
+     }, false);
+
+     const data = await parseResponse(response);
+
+     if (!response.ok) {
+       throw new Error(data.detail || "Google sign-in failed");
+     }
+
+     if (data.access_token) {
+       setAccessToken(data.access_token);
+     }
+
+     return data;
+   }
