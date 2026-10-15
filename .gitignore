@@ -31,3 +31,4 @@ uploads/
 # Python coverage
 .coverage
 htmlcov/
+backups/

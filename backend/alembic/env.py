@@ -1,6 +1,7 @@
 from logging.config import fileConfig
 
 import asyncio
+import os
 import sys
 
 from pathlib import Path
@@ -53,13 +54,19 @@ target_metadata = Base.metadata
 
 
 # =========================================================
-# DATABASE URL
+# DATABASE URL (Dynamic Docker/Local Detector)
 # =========================================================
 
+# If the file '.dockerenv' exists, we are running inside the container
+IS_DOCKER = os.path.exists("/.dockerenv")
+
+DB_HOST = "db" if IS_DOCKER else "localhost"
+DB_PORT = "5432" if IS_DOCKER else "5433"
+
 DATABASE_URL = (
-    "postgresql+asyncpg://"
-    "chatuser:chatpassword"
-    "@localhost:5433/realtime_chat"
+    f"postgresql+asyncpg://"
+    f"chatuser:chatpassword"
+    f"@{DB_HOST}:{DB_PORT}/realtime_chat"
 )
 
 
