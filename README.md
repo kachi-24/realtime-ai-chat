@@ -1,37 +1,47 @@
 # Real-Time AI Chat + RAG
 
-A full-stack real-time AI chat application built with **FastAPI, React, WebSockets, PostgreSQL, pgvector, Redis, RQ, JWT authentication, and Ollama**.
+A full-stack, real-time AI chat application built with **React, FastAPI, WebSockets, PostgreSQL, pgvector, Redis, RQ, JWT authentication, and Ollama**.
 
-The project combines real-time communication, retrieval-augmented generation (RAG), background document processing, vector search, authentication, rate limiting, caching, and observability into a distributed-style AI application.
+The application combines conversational AI, Retrieval-Augmented Generation (RAG), web search, image understanding, background document processing, vector search, authentication, and error monitoring in a distributed-style architecture.
 
 ---
 
 ## 🚀 Features
 
 ### 💬 Real-Time AI Chat
-
-* Real-time communication using **WebSockets**
-* Streaming AI responses from Ollama
-* Persistent conversations and messages
-* Automatic conversation titles based on the first user message
-* Feature flag for enabling/disabling automatic conversation titles
-* Conversation history
-* Multi-user conversation isolation
+- Real-time messaging using WebSockets.
+- Streaming AI responses.
+- Persistent conversations and messages.
+- Conversation history.
+- Automatic conversation titles.
+- Feature flags for controlling application functionality.
+- Multi-user conversation isolation.
 
 ### 🧠 Retrieval-Augmented Generation (RAG)
+- Upload PDF and text documents.
+- Extract and process document content.
+- Split documents into smaller chunks.
+- Generate vector embeddings.
+- Store embeddings using PostgreSQL and pgvector.
+- Perform similarity-based document retrieval.
+- Retrieve user-specific document context.
+- Generate responses using relevant retrieved information.
 
-* Upload documents for knowledge retrieval
-* PDF/text document processing
-* Document chunking
-* Vector embeddings
-* PostgreSQL + **pgvector** for vector storage
-* Similarity-based document retrieval
-* User-specific document isolation
-* Retrieved context is provided to the AI before generating an answer
+### 🌐 Web Search
+- Optional web search during AI conversations.
+- Tavily-powered search integration.
+- Retrieve external information to supplement AI responses.
+- Provide source links alongside web-grounded responses.
+- Use web evidence to improve answers about current information.
 
-### 🤖 Local AI
+### 🖼️ Image Understanding
+- Image upload and processing.
+- Cloudinary integration for image hosting.
+- Gemini Vision integration for image understanding.
+- Image validation before processing.
 
-The application uses **Ollama** for local LLM inference.
+### 🤖 Local AI Inference
+The application supports local AI inference through **Ollama**.
 
 Current model configuration:
 
@@ -39,221 +49,151 @@ Current model configuration:
 qwen3:1.7b
 ```
 
-The application is designed to avoid requiring a third-party AI API key for inference.
+The local inference approach reduces dependence on paid third-party inference APIs.
 
----
+### 🎤 Voice Input
+- Voice-to-text using the browser Web Speech API.
+- Convert spoken input into chat messages.
 
-## 🔐 Authentication & Security
+### 🔐 Authentication & Security
+- User registration.
+- Password hashing.
+- JWT authentication.
+- Access and refresh tokens.
+- Email verification.
+- Protected API endpoints.
+- Protected WebSocket connections.
+- User-specific conversations and documents.
+- Rate limiting.
+- CORS configuration.
+- Secure HTTP-only authentication cookies where applicable.
 
-The backend includes:
+### ⚡ Redis & Background Processing
+Redis supports:
+- Rate limiting.
+- Caching.
+- Background job infrastructure.
+- Queue communication.
 
-* User registration
-* Password hashing
-* JWT authentication
-* Access tokens
-* Refresh tokens
-* Email verification
-* Protected API endpoints
-* Protected WebSocket connections
-* User-specific conversations
-* User-specific documents
-* User-specific RAG retrieval
-* Rate limiting
-* CORS configuration
-* Secure HTTP-only authentication cookies where applicable
+RQ workers handle document-processing jobs independently of the main API server.
 
-The application ensures that users cannot retrieve conversations or document chunks belonging to another user.
-
----
-
-## ⚡ Redis
-
-Redis is used for distributed application functionality including:
-
-* Rate limiting
-* Caching
-* Background job infrastructure
-* Queue communication
-
-This allows the application to separate short-lived application state and background processing from the main PostgreSQL database.
-
----
-
-## 🔄 Background Processing
-
-Document processing is handled asynchronously using:
-
-* **Redis**
-* **RQ (Redis Queue)**
-* Dedicated worker processes
-
-Instead of making the API server perform expensive document-processing tasks directly, uploaded documents can be placed into a background queue.
-
-Example flow:
-
-```text
-User uploads document
-        │
-        ▼
-FastAPI API
-        │
-        ▼
-Redis Queue
-        │
-        ▼
-RQ Worker
-        │
-        ├── Load document
-        ├── Extract text
-        ├── Split into chunks
-        ├── Generate embeddings
-        └── Store vectors in PostgreSQL
-```
-
-This improves responsiveness and provides a foundation for scaling document processing independently from the API.
-
----
-
-## 🗄️ Database
-
-The project uses **PostgreSQL** as the primary database.
-
-PostgreSQL stores:
-
-* Users
-* Conversations
-* Messages
-* Documents
-* Document chunks
-* Vector embeddings
-* Authentication-related data
-
-### Vector Search
-
-The project uses the PostgreSQL **pgvector** extension to store and search embeddings.
-
-RAG flow:
-
-```text
-Document
-   │
-   ▼
-Text Extraction
-   │
-   ▼
-Chunking
-   │
-   ▼
-Embeddings
-   │
-   ▼
-PostgreSQL + pgvector
-   │
-   ▼
-Similarity Search
-   │
-   ▼
-Relevant Context
-   │
-   ▼
-Ollama
-   │
-   ▼
-AI Response
-```
+### 📊 Observability
+- Sentry integration for frontend and backend error monitoring.
+- Worker error monitoring.
+- Error reporting for background jobs.
 
 ---
 
 ## 🏗️ Architecture
 
 ```text
-                         ┌──────────────────────┐
-                         │      React UI        │
-                         │      Frontend        │
-                         └──────────┬───────────┘
-                                    │
-                         HTTP / WebSocket
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │      FastAPI         │
-                         │       Backend        │
-                         └───────┬───────┬──────┘
-                                 │       │
-                    ┌────────────┘       └─────────────┐
-                    │                                  │
-                    ▼                                  ▼
-             ┌──────────────┐                  ┌──────────────┐
-             │ PostgreSQL   │                  │    Redis     │
-             │ + pgvector   │                  │              │
-             └──────────────┘                  └──────┬───────┘
-                                                      │
-                                                      ▼
-                                               ┌──────────────┐
-                                               │  RQ Worker   │
-                                               │              │
-                                               └──────┬───────┘
-                                                      │
-                                                      ▼
-                                               Document Jobs
-                                                      │
-                                                      ▼
-                                               Embeddings/RAG
+                    React Frontend
+                          |
+                    HTTP / WebSocket
+                          |
+                          v
+                    FastAPI Backend
+                          |
+          +---------------+----------------+
+          |               |                |
+          v               v                v
+      PostgreSQL        Redis          AI Services
+      + pgvector          |          + Ollama
+                          |          + Tavily
+                          v          + Gemini Vision
+                      RQ Worker
+                          |
+                          v
+                  Document Processing
+                          |
+                          v
+                 Embeddings and RAG
+```
 
-                         ┌──────────────────────┐
-                         │       Ollama         │
-                         │     Local LLM        │
-                         └──────────────────────┘
+### RAG Processing Flow
+
+```text
+User uploads document
+        |
+        v
+    FastAPI
+        |
+        v
+    Redis Queue
+        |
+        v
+    RQ Worker
+        |
+        v
+   Extract Text
+        |
+        v
+    Chunking
+        |
+        v
+ Generate Embeddings
+        |
+        v
+ PostgreSQL + pgvector
+        |
+        v
+ Similarity Search
+        |
+        v
+ Relevant Context
+        |
+        v
+    Ollama
+        |
+        v
+   AI Response
+```
+
+### Web Search Flow
+
+```text
+User enables Web Search
+        |
+        v
+    FastAPI
+        |
+        v
+   Tavily Search
+        |
+        v
+  Search Results
+        |
+        v
+  Build Web Context
+        |
+        v
+    AI Model
+        |
+        v
+  Answer with Sources
 ```
 
 ---
 
 ## 🛠️ Technology Stack
 
-### Frontend
-
-* React
-* Vite
-* JavaScript
-* WebSocket API
-* Web Speech API
-
-### Backend
-
-* Python
-* FastAPI
-* WebSockets
-* SQLAlchemy
-* Alembic
-* JWT
-* Pydantic
-
-### AI / RAG
-
-* Ollama
-* Qwen
-* Vector embeddings
-* pgvector
-* Retrieval-Augmented Generation
-
-### Infrastructure
-
-* PostgreSQL
-* Redis
-* RQ
-* Docker
-* Docker Compose
-
-### Testing & CI/CD
-
-* Pytest
-* Python compile checks
-* npm build
-* GitHub Actions
-
-### Observability
-
-* Sentry
+| Category | Technologies |
+|---|---|
+| Frontend | React, Vite, JavaScript |
+| Backend | Python, FastAPI, WebSockets |
+| Database | PostgreSQL, SQLAlchemy |
+| Vector Database | pgvector |
+| Migrations | Alembic |
+| Authentication | JWT |
+| AI Inference | Ollama, Qwen |
+| Web Search | Tavily |
+| Image Understanding | Gemini Vision |
+| Image Hosting | Cloudinary |
+| Background Jobs | Redis, RQ |
+| Infrastructure | Docker, Docker Compose |
+| Testing | Pytest |
+| CI/CD | GitHub Actions |
+| Monitoring | Sentry |
 
 ---
 
@@ -274,9 +214,8 @@ realtime-ai-chat/
 │   ├── cache.py
 │   ├── email_service.py
 │   ├── worker.py
-│   │
-│   ├── conversation_title.py
-│   ├── feature_flags.py
+│   ├── web_search.py
+│   ├── alembic.ini
 │   │
 │   ├── jobs/
 │   │   └── document_jobs.py
@@ -309,297 +248,73 @@ realtime-ai-chat/
 
 ---
 
-## 🔄 Conversation Flow
+## ⚙️ Local Development Setup
 
-A normal AI chat request follows this general flow:
+### Prerequisites
 
-```text
-User
- │
- ▼
-React Frontend
- │
- │ WebSocket
- ▼
-FastAPI
- │
- ├── Authenticate user
- │
- ├── Apply rate limit
- │
- ├── Load conversation
- │
- ├── Save user message
- │
- ├── Retrieve relevant RAG context
- │
- ▼
-Ollama
- │
- ▼
-Stream AI response
- │
- ▼
-FastAPI
- │
- ▼
-React
- │
- ▼
-User
-```
+Install the following:
 
----
-
-## 📄 Document Processing Flow
-
-```text
-User
- │
- ▼
-Upload PDF/Text File
- │
- ▼
-FastAPI
- │
- ▼
-Redis / RQ Queue
- │
- ▼
-Background Worker
- │
- ▼
-Extract Text
- │
- ▼
-Chunk Document
- │
- ▼
-Generate Embeddings
- │
- ▼
-PostgreSQL + pgvector
-```
-
-When the user asks a question:
-
-```text
-Question
-   │
-   ▼
-Generate Query Embedding
-   │
-   ▼
-pgvector Similarity Search
-   │
-   ▼
-Relevant Document Chunks
-   │
-   ▼
-Build RAG Prompt
-   │
-   ▼
-Ollama
-   │
-   ▼
-Generated Answer
-```
-
----
-
-## 🏷️ Automatic Conversation Titles
-
-New conversations can automatically receive a title based on the user's first message.
-
-Example:
-
-```text
-User:
-"Explain how JWT refresh tokens work"
-
-Conversation title:
-"How JWT Refresh Tokens Work"
-```
-
-This functionality is controlled through a feature flag, allowing the feature to be enabled or disabled without removing the implementation.
-
----
-
-## 🎤 Voice Input
-
-The frontend supports voice-to-text using the browser's **Web Speech API**.
-
-Users can speak their message instead of typing it.
-
-```text
-Microphone
-    │
-    ▼
-Web Speech API
-    │
-    ▼
-Transcribed Text
-    │
-    ▼
-Chat Message
-```
-
-Browser support may vary depending on the browser and platform.
-
----
-
-## 📊 Observability
-
-The application integrates **Sentry** for error monitoring and performance visibility.
-
-Sentry is configured across the appropriate backend, worker, and frontend components to help detect unexpected errors and monitor application behavior.
-
-Sensitive authentication information and secrets should not be sent to Sentry.
-
----
-
-## 🧪 Testing
-
-Backend tests use **pytest**.
-
-Run the backend tests:
-
-```bash
-cd backend
-pytest -q
-```
-
-Compile the backend:
-
-```bash
-python -m compileall .
-```
-
-Build the frontend:
-
-```bash
-cd frontend
-npm run build
-```
-
----
-
-## 🔁 CI/CD
-
-GitHub Actions automatically validates the project.
-
-The CI pipeline performs:
-
-### Backend
-
-```text
-Checkout
-   ↓
-Python setup
-   ↓
-Install dependencies
-   ↓
-Compile backend
-   ↓
-Run pytest
-```
-
-### Frontend
-
-```text
-Checkout
-   ↓
-Node.js setup
-   ↓
-npm ci
-   ↓
-npm run build
-```
-
-This helps catch backend and frontend errors before deployment.
-
----
-
-## 🐳 Docker
-
-Docker is used to containerize the backend and background worker.
-
-The project uses Docker Compose for the application services.
-
-Example:
-
-```bash
-docker compose up --build
-```
-
-Stop the project when finished:
-
-```bash
-docker compose down
-```
-
-> Do not use `docker compose down -v` unless you intentionally want to remove Docker volumes and their stored data.
-
----
-
-## ⚙️ Local Development
+- Python 3.12
+- Node.js 22
+- PostgreSQL with pgvector support
+- Redis
+- Ollama
+- Docker Desktop
+- Git
 
 ### 1. Clone the repository
 
-```bash
+```powershell
 git clone https://github.com/kachi-24/realtime-ai-chat.git
-```
-
-```bash
 cd realtime-ai-chat
 ```
 
-### 2. Create a Python virtual environment
-
-```bash
-python -m venv .venv
-```
-
-Activate it on Windows:
+### 2. Create and activate a virtual environment
 
 ```powershell
+python -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
 ### 3. Install backend dependencies
 
-```bash
+```powershell
 cd backend
 pip install -r requirements.txt
 ```
 
 ### 4. Configure environment variables
 
-Create your local environment configuration with the required values for:
+Create your local `.env` configuration using the environment variables required by the backend and frontend.
 
-* PostgreSQL
-* Redis
-* JWT authentication
-* Email verification
-* Ollama
-* Sentry
-* Frontend configuration
+Configuration includes:
 
-**Never commit real secrets or API keys to GitHub.**
+- PostgreSQL connection.
+- Redis connection.
+- JWT authentication.
+- Email verification.
+- Ollama.
+- Tavily web search.
+- Cloudinary.
+- Gemini Vision.
+- Sentry.
+- Frontend API and WebSocket URLs.
+
+See the Environment Variables section below.
+
+**Never commit `.env` files, API keys, or private credentials to GitHub.**
 
 ### 5. Start Ollama
 
-Make sure Ollama is installed and the configured model is available.
+Install Ollama and download the configured model:
 
-Example:
-
-```bash
+```powershell
 ollama pull qwen3:1.7b
 ```
 
-Check available models:
+Check installed models:
 
-```bash
+```powershell
 ollama list
 ```
 
@@ -607,7 +322,7 @@ ollama list
 
 From the `backend` directory:
 
-```bash
+```powershell
 uvicorn main:app --reload --port 8000
 ```
 
@@ -615,19 +330,37 @@ uvicorn main:app --reload --port 8000
 
 Open another terminal:
 
-```bash
-cd frontend
+```powershell
+cd realtime-ai-chat/frontend
 npm install
 npm run dev
 ```
+
+### 8. Start Docker services
+
+From the directory containing `docker-compose.yaml`:
+
+```powershell
+docker compose up --build
+```
+
+Stop the Compose-managed services:
+
+```powershell
+docker compose down
+```
+
+**Do not use `docker compose down -v` unless you intentionally want to remove volumes and their stored data.**
+
+Make sure PostgreSQL and Redis are running and that the connection URLs match your selected local or Docker configuration.
 
 ---
 
 ## 🔑 Environment Variables
 
-The application uses environment variables for configuration and secrets.
+The following are configuration examples. Use the actual variable names expected by your application code.
 
-Typical configuration includes:
+### Backend
 
 ```env
 DATABASE_URL=
@@ -637,148 +370,226 @@ JWT_SECRET_KEY=
 ACCESS_TOKEN_EXPIRE_MINUTES=
 REFRESH_TOKEN_EXPIRE_DAYS=
 
-EMAIL_VERIFICATION_EXPIRE_HOURS=
 RESEND_API_KEY=
 EMAIL_FROM=
 
 OLLAMA_URL=
 OLLAMA_MODEL=
 
+TAVILY_API_KEY=
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+GEMINI_API_KEY=
+
 SENTRY_DSN=
 SENTRY_TRACES_SAMPLE_RATE=
 ```
 
-For the frontend, Vite variables use the `VITE_` prefix:
+### Frontend
 
 ```env
 VITE_API_URL=
 VITE_WS_URL=
 VITE_ENVIRONMENT=
+
 VITE_SENTRY_DSN=
 VITE_SENTRY_TRACES_SAMPLE_RATE=
 ```
 
-Do not commit `.env` files or real credentials.
+Do not publish real environment variable values.
 
 ---
 
-## 🔒 Security
+## 🧪 Testing
 
-This project is designed with several security considerations:
+### Backend tests
 
-* Password hashing
-* JWT authentication
-* Refresh-token authentication
-* Email verification
-* Protected WebSocket connections
-* User-level resource isolation
-* Rate limiting
-* CORS restrictions
-* Environment-based secrets
-* Sentry error monitoring without intentionally exposing authentication secrets
+```powershell
+cd backend
+pytest -q
+```
 
-For production deployment, additional infrastructure security such as HTTPS, secure cookies, secret management, database security, network restrictions, and production-grade monitoring should be configured.
+### Python syntax check
+
+```powershell
+python -m compileall .
+```
+
+### Frontend production build
+
+```powershell
+cd frontend
+npm ci
+npm run build
+```
+
+---
+
+## 🔁 CI/CD — GitHub Actions
+
+The project uses GitHub Actions to automatically validate backend and frontend changes.
+
+The CI workflow supports:
+
+- Pushes to `main`.
+- Pushes to `develop`.
+- Pushes to feature branches matching `feature/**`.
+- Pull requests targeting `main` and `develop`.
+
+### Backend CI
+
+```text
+Checkout Repository
+        |
+        v
+Set Up Python 3.12
+        |
+        v
+Install Dependencies
+        |
+        v
+Compile Python Files
+        |
+        v
+Run Pytest
+```
+
+### Frontend CI
+
+```text
+Checkout Repository
+        |
+        v
+Set Up Node.js
+        |
+        v
+Install Dependencies
+        |
+        v
+npm ci
+        |
+        v
+npm run build
+```
+
+This helps detect errors before changes are merged into the main branch.
+
+---
+
+## 🔒 Security Considerations
+
+The application incorporates:
+
+- Password hashing.
+- JWT authentication.
+- Refresh-token authentication.
+- Email verification.
+- Protected WebSocket connections.
+- User-level resource isolation.
+- Rate limiting.
+- CORS restrictions.
+- Environment-based secrets.
+- Sentry error monitoring.
+
+For production deployment, additional security measures should include HTTPS, secure cookie configuration, managed secrets, database access restrictions, and production-grade monitoring.
 
 ---
 
 ## 📈 Distributed Systems Concepts
 
-This project is also designed to demonstrate practical distributed-systems concepts.
+This project demonstrates practical distributed-systems concepts.
 
 ### Stateless API
-
-Authentication allows API instances to remain largely stateless, making horizontal scaling possible.
+JWT-based authentication supports API instances that do not need to maintain individual session state.
 
 ### Redis
-
-Redis provides shared state and infrastructure for:
-
-* Rate limiting
-* Caching
-* Background queues
+Redis provides shared infrastructure for rate limiting, caching, and background job communication.
 
 ### Background Workers
-
-Document processing is separated from the API server using RQ workers.
-
-This allows worker capacity to be scaled independently.
+RQ separates document-processing workloads from the main API server, allowing worker capacity to be scaled independently.
 
 ### WebSockets
+WebSockets provide persistent, real-time communication between the frontend and backend.
 
-The application maintains real-time communication between clients and the backend.
+For multi-instance deployments, shared WebSocket coordination would require infrastructure such as Redis Pub/Sub or another message broker.
 
-For a multi-instance production deployment, WebSocket coordination would require shared infrastructure such as Redis Pub/Sub or another message-broker architecture.
-
-### Database
-
-PostgreSQL provides durable persistent storage while pgvector enables vector similarity search.
+### Database and Vector Search
+PostgreSQL provides persistent storage, while pgvector supports similarity-based retrieval.
 
 ---
 
-## 🚧 Current Development Status
+## 🚧 Development Status
 
-The project currently includes:
+The project includes the following implemented areas:
 
-* [x] React frontend
-* [x] FastAPI backend
-* [x] WebSocket chat
-* [x] Ollama local inference
-* [x] PostgreSQL
-* [x] Redis
-* [x] RQ background jobs
-* [x] Document upload
-* [x] RAG pipeline
-* [x] pgvector similarity search
-* [x] JWT authentication
-* [x] Refresh tokens
-* [x] Email verification
-* [x] User-level data isolation
-* [x] Rate limiting
-* [x] Voice-to-text
-* [x] Automatic conversation titles
-* [x] Feature flags
-* [x] Sentry integration
-* [x] Automated CI
-* [x] Docker support
+- [x] React frontend
+- [x] FastAPI backend
+- [x] WebSocket chat
+- [x] Ollama local inference
+- [x] PostgreSQL
+- [x] Redis
+- [x] RQ background jobs
+- [x] Document upload
+- [x] RAG pipeline
+- [x] pgvector similarity search
+- [x] JWT authentication
+- [x] Refresh tokens
+- [x] Email verification
+- [x] User-level data isolation
+- [x] Rate limiting
+- [x] Voice-to-text
+- [x] Automatic conversation titles
+- [x] Feature flags
+- [x] Sentry integration
+- [x] Web search integration
+- [x] Image understanding integration
+- [x] Docker support
+- [x] GitHub Actions CI workflow
 
 ---
 
 ## 🛣️ Future Improvements
 
-Possible future improvements include:
+Potential improvements include:
 
-* Horizontal backend scaling
-* Redis Pub/Sub for multi-instance WebSocket communication
-* Production GPU inference infrastructure
-* Model load balancing
-* Object storage for uploaded documents
-* Database connection pooling and read replicas
-* Advanced RAG evaluation
-* Hybrid keyword + vector search
-* Streaming RAG responses
-* Improved conversation-title generation using an LLM
-* Production deployment
-* Infrastructure monitoring
-* Automated deployment through CI/CD
+- Horizontal backend scaling.
+- Redis Pub/Sub for multi-instance WebSocket communication.
+- Production GPU inference infrastructure.
+- Model load balancing.
+- Object storage for uploaded documents.
+- Database connection pooling and read replicas.
+- Advanced RAG evaluation.
+- Hybrid keyword and vector search.
+- Improved RAG response evaluation.
+- Production deployment.
+- Infrastructure monitoring.
+- Automated deployment through CI/CD.
 
 ---
 
 ## 🎯 Project Goals
 
-The goal of this project is to build more than a simple AI chatbot.
+The goal is to build more than a simple AI chatbot.
 
-It demonstrates how modern AI applications can combine:
+This project brings together:
 
 ```text
 AI
 +
-RAG
+Retrieval-Augmented Generation
++
+Web Search
++
+Image Understanding
 +
 WebSockets
 +
 Authentication
 +
-Databases
+PostgreSQL
 +
 Vector Search
 +
@@ -793,7 +604,7 @@ CI/CD
 Observability
 ```
 
-into a single full-stack application.
+into one full-stack AI application.
 
 ---
 
@@ -810,3 +621,4 @@ GitHub: [@kachi-24](https://github.com/kachi-24)
 ## 📜 License
 
 This project is currently intended for educational and portfolio purposes.
+
